@@ -66,12 +66,30 @@ class EventHubApi:
         async def on_event(partition_context, event):
             # this receives all events.  they get filtered by device_id (if necessary) when
             # pulled from the queue
+            logger("event receive {}".format(id(event)))
             await self.received_events.put(event)
+            await partition_context.update_checkpoint(event)
+            logger("done with event receive {}".format(id(event)))
 
         async def listener():
-            await self.consumer_client.receive(on_event, starting_position=offset)
+            try:
+                await self.consumer_client.receive(on_event, starting_position=offset)
+            except Exception as e:
+                logger("EventHubApi exception: {}".format(e))
+                raise
+
+        def done_cb(*args, **kwargs):
+            logger("** listener future is done")
+            logger("cancelled? {}".format(self.listener_future.cancelled()))
+            logger(
+                "exception {} {} ".format(
+                    self.listener_future.exception(),
+                    type(self.listener_future.exception()),
+                )
+            )
 
         self.listener_future = asyncio.ensure_future(listener())
+        self.listener_future.add_done_callback(done_cb)
 
         logger("EventHubApi: Listener Created")
 

@@ -20,7 +20,9 @@ from longhaul_config import (
 from measurement import TrackCount, TrackMax, MeasureRunningCodeBlock, MeasureLatency
 from horton_logging import logger
 from sample_content import make_message_payload
+import logging
 
+python_logger = logging.getLogger(__name__)
 pytestmark = pytest.mark.asyncio
 
 # BKTODO:
@@ -32,9 +34,21 @@ pytestmark = pytest.mark.asyncio
 desired_node_config = {
     "test_config": {
         "d2c": {"enabled": True, "interval_length": 1, "ops_per_interval": 10},
-        "total_duration": "0:00:30",
+        "total_duration": "73:00:30",
     }
 }
+
+
+async def _log_exception(aw):
+    """
+    Log any exceptions that happen while running this awaitable
+    """
+    try:
+        await aw
+    except Exception:
+        logger("Exception raised")
+        logger(traceback.format_exc())
+        raise
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -59,7 +73,9 @@ class IntervalOperation(object):
 
             return set(
                 [
-                    asyncio.wait_for(self.run_one_op(), timeout=self.timeout)
+                    _log_exception(
+                        asyncio.wait_for(self.run_one_op(), timeout=self.timeout)
+                    )
                     for _ in range(0, self.ops_per_interval)
                 ]
             )
@@ -129,8 +145,7 @@ class IntervalOperationLonghaul(IntervalOperation):
             self.count_completed.increment()
 
         except Exception as e:
-            logger("OP FAILED: Exception running op: {}".format(e))
-            traceback.print_exc()
+            logger("OP FAILED: Exception running op: {}".format(type(e)))
             self.count_failed.increment()
 
 
@@ -172,10 +187,12 @@ class IntervalOperationD2c(IntervalOperationLonghaul):
                 mid = message["op_id"]
                 with self.mid_list_lock:
                     if mid in self.mid_list:
+                        logger("received known mid {}".format(mid))
                         if isinstance(self.mid_list[mid], asyncio.Future):
                             self.mid_list[mid].set_result(True)
                         del self.mid_list[mid]
                     else:
+                        logger("received unkown mid {}".format(mid))
                         self.mid_list[mid] = True
 
     async def wait_for_completion(self, mid):
@@ -184,24 +201,34 @@ class IntervalOperationD2c(IntervalOperationLonghaul):
         with self.mid_list_lock:
             # if we've received it, return.  Else, set a future for the listener to complete when it does receive.
             if mid in self.mid_list:
+                logger("already received mid {}. returning".format(mid))
                 del self.mid_list[mid]
                 return
             else:
+                logger("waiting for mid {}. returning".format(mid))
                 self.mid_list[mid] = message_received
 
             # see if the previous listener is done.
             if self.listener and self.listener.done():
                 # call result() to force an exception if the listener had one
+                logger(
+                    "starting new listener.  Previous = {}".format(
+                        self.listener.exception()
+                    )
+                )
                 self.listener.result()
                 self.listener = None
 
             # start a new future
             if self.listener is None:
-                self.listener = asyncio.create_task(self.listen_on_eventhub())
+                self.listener = asyncio.create_task(
+                    _log_exception(self.listen_on_eventhub())
+                )
 
         await message_received
 
     async def finish(self):
+        logger("finishing")
         if self.listener:
             self.listener.cancel()
             self.listener = None
@@ -381,9 +408,11 @@ class LongHaulTest(object):
 
             await asyncio.gather(*all_tasks)
 
+            logger("Marking test as complete")
             test_report.test_status.status = "completed"
 
         except Exception:
+            logger("Marking test as failed")
             test_report.test_status.status = "failed"
             raise
 
@@ -391,7 +420,9 @@ class LongHaulTest(object):
             # finish all of our longhaul ops, then finish our reporting ops.
             # order is important here since send_test_telemetry feeds data into
             # update_test_report.
+            logger("finishing ops")
             await asyncio.gather(*(op.finish() for op in longhaul_ops.values()))
+            logger("sending last telemetry and updating reported properties")
             await send_test_telemetry.finish()
             await update_test_report.finish()
 
