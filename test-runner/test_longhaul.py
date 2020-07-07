@@ -344,6 +344,20 @@ class IntervalOperationSendTestTelemetry(IntervalOperation):
         await self.run_one_op()
 
 
+class IntervalOperationRenewEventhub(IntervalOperation):
+    def __init__(self, *, test_config, eventhub):
+        super(IntervalOperationRenewEventhub, self).__init__(
+            interval_length=_get_seconds(test_config.eventhub_renew_interval),
+            ops_per_interval=1,
+            timeout=_get_seconds(test_config.timeout_interval),
+        )
+        self.eventhub = eventhub
+
+    async def run_one_op(self):
+        logger("renewing eventhub listener")
+        await self.eventhub.start_new_listener()
+
+
 class LongHaulTest(object):
     async def test_longhaul(self, client, eventhub, longhaul_control_device, caplog):
         await eventhub.connect()
@@ -375,9 +389,18 @@ class LongHaulTest(object):
             longhaul_control_device=longhaul_control_device,
             longhaul_ops=longhaul_ops,
         )
+        """
+        renew_eventhub = IntervalOperationRenewEventhub(
+            test_config=test_config, eventhub=eventhub
+        )
+        """
 
         all_ops = set(longhaul_ops.values()) | set(
-            [update_test_report, send_test_telemetry]
+            [
+                update_test_report,
+                send_test_telemetry,
+                # renew_eventhub
+            ]
         )
 
         try:
