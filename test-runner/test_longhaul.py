@@ -32,9 +32,9 @@ pytestmark = pytest.mark.asyncio
 
 
 desired_node_config = {
-    "test_config": {
-        "d2c": {"enabled": True, "interval_length": 1, "ops_per_interval": 10},
-        "total_duration": "73:00:30",
+    "testConfig": {
+        "d2c": {"enabled": True, "intervalLength": 1, "opsPerInterval": 10},
+        "totalDuration": "73:00:30",
     }
 }
 
@@ -49,6 +49,19 @@ async def _log_exception(aw):
         logger("Exception raised")
         logger(traceback.format_exc())
         raise
+
+
+def _get_seconds(interval):
+    """
+    Return interval duration in seconds.  Using this, we can author tests with either
+    timedelta-based intervals, integers, or floats.
+    """
+    if isinstance(interval, datetime.timedelta):
+        return interval.total_seconds()
+    elif isinstance(interval, int) or isinstance(interval, float):
+        return interval
+    else:
+        assert False
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -102,7 +115,7 @@ class IntervalOperationLonghaul(IntervalOperation):
         super(IntervalOperationLonghaul, self).__init__(
             interval_length=op_config.interval_length,
             ops_per_interval=op_config.ops_per_interval,
-            timeout=test_config.timeout_interval.total_seconds(),
+            timeout=_get_seconds(test_config.timeout_interval),
         )
 
         self.test_config = test_config
@@ -239,9 +252,9 @@ class IntervalOperationUpdateTestReport(IntervalOperation):
         self, *, test_config, test_status, longhaul_control_device, longhaul_ops
     ):
         super(IntervalOperationUpdateTestReport, self).__init__(
-            interval_length=test_config.reporting_interval.total_seconds(),
+            interval_length=_get_seconds(test_config.reporting_interval),
             ops_per_interval=1,
-            timeout=test_config.timeout_interval.total_seconds(),
+            timeout=_get_seconds(test_config.timeout_interval),
         )
 
         self.longhaul_control_device = longhaul_control_device
@@ -286,9 +299,9 @@ class IntervalOperationSendTestTelemetry(IntervalOperation):
         self, *, test_config, test_status, longhaul_control_device, longhaul_ops
     ):
         super(IntervalOperationSendTestTelemetry, self).__init__(
-            interval_length=test_config.telemetry_interval.total_seconds(),
+            interval_length=_get_seconds(test_config.telemetry_interval),
             ops_per_interval=1,
-            timeout=test_config.timeout_interval.total_seconds(),
+            timeout=_get_seconds(test_config.timeout_interval),
         )
         self.longhaul_control_device = longhaul_control_device
         self.longhaul_ops = longhaul_ops
@@ -342,7 +355,6 @@ class LongHaulTest(object):
         test_status = test_report.test_status
         test_status.status = "running"
 
-        # BKTODO: maybe just pass in test_config and test_report and let the runner decide what to use?
         longhaul_ops = {
             "d2c": IntervalOperationD2c(
                 test_config=test_config,
