@@ -122,8 +122,8 @@ class EventHubApi:
                     on_event=on_event,
                     on_error=on_error,
                     starting_position=self.starting_position,
-                    on_partition_initialize=self.on_partition_initialize,
-                    on_partition_close=self.on_partition_close,
+                    on_partition_initialize=on_partition_initialize,
+                    on_partition_close=on_partition_close,
                 )
             except Exception as e:
                 logger("EventHubApi exception: {}".format(e))
