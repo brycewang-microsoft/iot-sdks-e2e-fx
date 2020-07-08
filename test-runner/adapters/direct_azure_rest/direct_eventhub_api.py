@@ -88,30 +88,30 @@ class EventHubApi:
         async def on_error(partition_context, error):
             # Put your code here. partition_context can be None in the on_error callback.
             if partition_context:
-                print(
-                    "An exception: {} occurred during receiving from Partition: {}.".format(
+                logger(
+                    "EventHubApi: An exception: {} occurred during receiving from Partition: {}.".format(
                         partition_context.partition_id, error
                     )
                 )
             else:
-                print(
-                    "An exception: {} occurred during the load balance process.".format(
+                logger(
+                    "EventHubApi: An exception: {} occurred during the load balance process.".format(
                         error
                     )
                 )
 
         async def on_partition_initialize(partition_context):
             # Put your code here.
-            print(
-                "Partition: {} has been initialized.".format(
+            logger(
+                "EventHubApi: Partition: {} has been initialized.".format(
                     partition_context.partition_id
                 )
             )
 
         async def on_partition_close(partition_context, reason):
             # Put your code here.
-            print(
-                "Partition: {} has been closed, reason for closing: {}.".format(
+            logger(
+                "EventHubApi: Partition: {} has been closed, reason for closing: {}.".format(
                     partition_context.partition_id, reason
                 )
             )
