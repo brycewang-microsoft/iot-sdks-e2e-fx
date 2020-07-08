@@ -389,18 +389,12 @@ class LongHaulTest(object):
             longhaul_control_device=longhaul_control_device,
             longhaul_ops=longhaul_ops,
         )
-        """
         renew_eventhub = IntervalOperationRenewEventhub(
             test_config=test_config, eventhub=eventhub
         )
-        """
 
         all_ops = set(longhaul_ops.values()) | set(
-            [
-                update_test_report,
-                send_test_telemetry,
-                # renew_eventhub
-            ]
+            [update_test_report, send_test_telemetry, renew_eventhub]
         )
 
         try:
@@ -458,6 +452,7 @@ class LongHaulTest(object):
             logger("finishing ops")
             await asyncio.gather(*(op.finish() for op in longhaul_ops.values()))
             logger("sending last telemetry and updating reported properties")
+            await renew_eventhub.finish()
             await send_test_telemetry.finish()
             await update_test_report.finish()
 
